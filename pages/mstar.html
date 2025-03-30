@@ -1,0 +1,52 @@
+---
+layout: default
+title: Derivation of $m^*$
+permalink: /mstar
+---
+
+<h2>Derivation of \(m^*\)</h2>
+
+We aim to show that
+\begin{equation*}
+    \min\{m' > 0 : F_{p_{\text{all}}}(\epsilon/m') \le \epsilon ~ \forall \epsilon \in [0, 1]\} = \sup_{\delta \in (0, \infty)} \frac{F_{p_{\text{all}}}(\delta)}{\delta}.
+\end{equation*}
+We begin by defining
+\begin{equation*}
+m^* = \min\{m' > 0 : F_{p_{\text{all}}}(\epsilon/m') \le \epsilon ~ \forall \epsilon \in [0, 1]\}.
+\end{equation*}
+Perform a change of variables by letting \(\delta = \epsilon/m'\); then \(\epsilon = m'\delta\). Under this substitution, \(F_{p_{\text{all}}}(\epsilon/m') \le \epsilon ~ \forall \epsilon \in [0, 1]\) becomes
+\begin{equation*}
+F_{p_{\text{all}}}(\delta) \le m'\delta \quad \forall \delta \in \left[0, \frac{1}{m'}\right].
+\end{equation*}
+Because \(F_{p_{\text{all}}}(0)=0\), the inequality holds trivially at \(\delta = 0\). Therefore, we may rewrite the condition as
+\begin{equation*}
+\frac{F_{p_{\text{all}}}(\delta)}{\delta} \le m' \quad \forall \delta \in \left(0, \frac{1}{m'}\right].
+\end{equation*}
+Next, note that for any \(\delta > \frac{1}{m'}\), we have \(\frac{1}{\delta} < m'\), and since \(F_{p_{\text{all}}}(\delta) \le 1\) (as \(F_{p_{\text{all}}}\) is a CDF), it follows that
+\begin{equation*}
+\frac{F_{p_{\text{all}}}(\delta)}{\delta} \le \frac{1}{\delta} < m'.
+\end{equation*}
+Thus, the inequality \(\frac{F_{p_{\text{all}}}(\delta)}{\delta} \le m'\) is automatically satisfied for \(\delta > \frac{1}{m'}\). Consequently, we can extend the domain for \(\delta\) to \((0,\infty)\) and write
+\begin{equation*}
+m^* = \min\{m' > 0 : \frac{F_{p_{\text{all}}}(\delta)}{\delta} \le m' \quad \forall \delta \in (0,\infty)\}.
+\end{equation*}
+At this point, we note that the minimization is over \(m' > 0\). However, we can extend this to \(m' \in \mathbb{R}\) because the condition
+\begin{equation*}
+    \frac{F_{p_{\text{all}}}(\delta)}{\delta} \leq m' \quad \forall \delta > 0
+\end{equation*}
+forces any acceptable \(m'\) to be positive. Indeed, since there exists some \(\delta > 0\) with \(F_{p_{\text{all}}}(\delta) > 0\), any \(m' \leq 0\) would make
+\begin{equation*}
+    \frac{F_{p_{\text{all}}}(\delta)}{\delta} > m',
+\end{equation*}
+violating the inequality. Thus, we can safely write
+\begin{equation*}
+    m^* = \min\{m' \in \mathbb{R} : \frac{F_{p_{\text{all}}}(\delta)}{\delta} \le m' \quad \forall \delta \in (0,\infty)\}.
+\end{equation*}
+By the definition of the supremum, this minimum is exactly the least upper bound of the set
+\begin{equation*}
+    \left\{ \frac{F_{p_{\text{all}}}(\delta)}{\delta} : \delta \in (0, \infty) \right\}.
+\end{equation*}
+Therefore, we obtain
+\begin{equation*}
+    m^* = \sup_{\delta \in (0, \infty)} \frac{F_{p_{\text{all}}}(\delta)}{\delta}.
+\end{equation*}

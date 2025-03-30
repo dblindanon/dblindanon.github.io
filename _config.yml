@@ -1,0 +1,8 @@
+title: "Anonymous Submission"
+description: "Supporting material for submission ZZZZ"
+baseurl: "" # leave blank for GitHub Pages root
+url: ""
+
+markdown: kramdown
+kramdown:
+  math_engine: mathjax

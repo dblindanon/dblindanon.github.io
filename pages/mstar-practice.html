@@ -1,0 +1,42 @@
+---
+layout: default
+title: Computing $m^*$ in practice
+permalink: /mstar-practice
+---
+
+<h2>Computing \(m^*\) in practice</h2>
+
+The merging correction factor \(m\) is a positive scalar that ensures \(m \cdot p_{\text{all}}(X_i, Y_i)\) is a valid p-value. That is,
+\begin{equation*}
+    m \in \{ m' > 0 : \mathbb{P}\{m' \cdot p_{\text{all}} \leq \epsilon \} \leq \epsilon ~ \forall \epsilon \in [0, 1] \} = \{ m' > 0 : F_{p_{\text{all}}}\left(\epsilon/m'\right) \leq \epsilon ~ \forall \epsilon \in [0, 1] \}.
+\end{equation*}
+For any merging correction factor, we have the following coverage guarantee
+\begin{equation*}
+    \mathbb{P}\{ p_{\text{all}}(X_{n+1}, Y_{n+1}) > \alpha \} = 1 - m \cdot \alpha.
+\end{equation*}
+To achieve the tightest coverage guarantee (with application to all \(\alpha \in [0,1]\)), we compute the minimal merging correction factor \(m^*\) to be
+\begin{equation} \label{eq:mstar_sup}
+    m^{*} = \min\{m' > 0 : F_{p_{\text{all}}}\left(\epsilon/m'\right) \leq \epsilon ~ \forall \epsilon \in [0, 1] \} = \sup_{\delta \in (0, \infty)}{\frac{F_{p_{\text{all}}}(\delta)}{\delta}}.
+\end{equation}
+
+In practice, we compute the minimal merging factor \(\widehat{m}^*\) by first constructing the empirical CDF of \(p_{\text{all}}\) over the merging set:
+\begin{equation*}
+\widehat{F}_{p_{\text{all}}}(\alpha) = \frac{\sum_{i \in \text{S}_\text{merge}} \mathbb{1}\left\{ p_{\text{all}}(X_i, Y_i) \leq \alpha \right\}}{|\text{S}_\text{merge}|}.
+\end{equation*}
+For the sake of conciseness, let
+\begin{equation*}
+    \widehat{F}_i := \widehat{F}_{p_{\text{all}}}(p_{\text{all}}\left(X_i, Y_i\right)).
+\end{equation*}
+Since \(\widehat{F}_{p_{\text{all}}}\) is a right-continuous step function that only jumps at the observed values \(\{p_{\text{all}}(X_i, Y_i) : i \in S_{\text{merge}}\}\), the supremum in \eqref{eq:mstar_sup} is attained at one of these points. In fact, for any \(\delta\) not equal to one of these values, shifting \(\delta\) slightly to the right (toward the next jump) increases the denominator without changing the numerator, thus decreasing the ratio. Therefore, it suffices to take the maximum over the observed p-values, yielding the empirical merging factor
+\begin{equation*}
+\widehat{m}^* = \max_{\substack{i \in S_{\text{merge}} \\[1pt] p_{\text{all}}(X_i, Y_i) > 0}} \frac{\widehat{F}_i}{p_{\text{all}}(X_i, Y_i)}.
+\end{equation*}
+In some cases, we are only interested in coverage above a certain significance level \(\alpha\). Then we only need to find the first point on the empirical CDF that surpasses \(\alpha\), or
+\begin{equation*}
+    \bar{\alpha} = \min_{\substack{i \in S_{\text{merge}} \\ \widehat{F}_i \geq \alpha}} \widehat{F}_i,
+\end{equation*}
+and then compute the scaling factor to be
+\begin{equation*}
+\widehat{m}_{\leq \alpha}^* = \max_{\substack{i \in S_{\text{merge}} \\[1pt] p_{\text{all}}(X_i, Y_i) > 0 \\ \widehat{F}_i \leq \bar{\alpha}}} \frac{\widehat{F}_i}
+     {p_{\text{all}}(X_i, Y_i)}.
+\end{equation*}

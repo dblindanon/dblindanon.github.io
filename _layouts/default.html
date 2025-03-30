@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page.title }} | {{ site.title }}</title>
+  <link rel="stylesheet" href="{{ "/assets/css/style.css" | relative_url }}">
+  <script>
+  window.MathJax = {
+    tex: {
+      packages: ['base', 'ams'],     // packages
+      inlineMath: [['\\(', '\\)']],  // $...$ sometimes conflicts with Markdown parsers like Kramdown
+      displayMath: [['\\[', '\\]'], ['$$', '$$']],
+      processEscapes: true,          // allow \\, \{, \} to  be passed through to MathJax
+      tags: 'ams',                   // number only \begin{equation}...\end{equation}
+    },
+  };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+
+<body>
+<div id="container">
+  <div id="layout-menu">
+    <div class="menu-category">Navigation</div>
+    <div class="menu-item"><a href="{{ "/" | relative_url }}">Home</a></div>
+    <div class="menu-item"><a href="{{ "/proposition-5-1" | relative_url }}">Proposition 5.1</a></div>
+    <div class="menu-item"><a href="{{ "/mstar" | relative_url }}">Derivation of \(m^*\)</a></div>
+    <div class="menu-item"><a href="{{ "/mstar-practice" | relative_url }}">Computing \(m^*\) in practice</a></div>
+  </div>
+
+  <div id="layout-content">
+    {{ content }}
+  </div>
+</div>
+</body>
+</html>
