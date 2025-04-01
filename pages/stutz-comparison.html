@@ -1,0 +1,63 @@
+---
+layout: default
+title: Comparison to Stutz et al. (2023)
+permalink: /stutz-comparison
+---
+
+<h2>Comparison with <i>Conformal Prediction under Ambiguous Ground Truth</i> (Stutz et al., 2023)</h2>
+
+<p>
+The ECDF method proposed by [Stutz’23] was originally developed for a different setting than ours, where they study the problem of uncertainty in the ground truth labels. In their framework, each calibration point consists only of an input \(X_i\); they sample \(m\) labels to get \(m\) p-values for each calibration point, and then take the unweighted average of these p-values. Let us denote this unweighted average as \(P_{\text{avg}}^i\), with distribution function \(F\). Their ECDF method transforms \(P_{\text{avg}}^i\) into a valid p-value via \(F(P_{\text{avg}}^i)\), and the prediction set is then the set of all labels such that the corrected p-value \(F(P_{\text{avg}}^i)\) corresponding to each sample is greater than some threshold \(\alpha\).
+</p>
+
+<p>
+While the focus of [Stutz’23] is on aggregating p-values across sampled labels, their ECDF transformation is general enough to be applied to the weighted average of p-values as well. This allows us to adapt it to our setting, where each p-value corresponds to a different prediction model or expert. This page presents additional experimental results where we apply the [Stutz’23] ECDF method to recreate the main findings of our paper with their alternative transformation.
+</p>
+
+<p>
+In their paper, [Stutz’23] note that the coverage guarantee using the true CDF holds only with an asymptotic number of samples, as the empirical CDF \(\widehat{F}\) approaches the true CDF \(F\). To establish a finite-sample guarantee, they introduce a DKW-derived correction \(\epsilon\) and construct the prediction sets based on \(\widehat{F} + \epsilon\). We find that, although their proposed prediction set yields an elegant \((1-\alpha)(1-\delta)\) finite-sample guarantee, the \(\epsilon\) correction is extremely conservative in practice.
+</p>
+
+<p>
+In the experiments below, we call the [Stutz’23] proposed finite-sample ECDF method as "ECDF-DKW", and the variant without the DKW correction as simply "ECDF".
+</p>
+
+<div>
+  <img src="/assets/images/fig2_regression.png" alt="Figure 1" style="max-width: 57%; height: auto;">
+  <p>
+    Figure 1: This is a recreation of the regression experiments in Figure 2 of our submission with the ECDF and ECDF-DKW methods of [Stutz’23]. We note that the ECDF method performs very similarly to our WA precise method in terms of coverage, WS coverage, and prediction set size. (Left column) like WA precise, the ECDF method's marginal coverage is more conservative than split conformal, but less conservative than the WA targeted methods. (Center column) however, ECDF enjoys better WS coverage than split conformal, although it still often falls short of the \(1-\alpha\) guarantee on the WS slab. Meanwhile, ECDF-DKW is so conservative that for the UCI datasets with limited calibration data, its prediction sets cover the entire label space. We therefore represent this with 100% coverage on both the coverage (left) and WS coverage (center) plots, and we do not plot the ECDF-DKW prediction set sizes (right column).
+  </p>
+</div>
+
+<div>
+  <img src="/assets/images/fig7_communities.png" alt="Figure 2" style="max-width: 100%; height: auto;">
+  <p>
+    Figure 2: This is a recreation of the Communities and Crimes experiments in Figure 7 of our submission with the ECDF and ECDF-DKW methods of [Stutz’23]. We note that, just as the ECDF method performs similarly to the WA precise method in the Communities dataset of Figure 1, it also performs similarly to WA precise when we take a demographic-conditional view of Communities, with very similar coverage and prediction set size. Here again, we see that ECDF-DKW is so conservative that it has 100% coverage with unbounded prediction sets.
+  </p>
+</div>
+
+<h3 id="ECDF-finite">
+  Why is the finite-sample ECDF variant so conservative?
+  <a href="#ECDF-finite" class="anchor-link" aria-label="Link to Section: Why is the finite-sample ECDF variant so conservative?">
+    <i class="fas fa-link"></i>
+  </a>
+</h3>
+
+<p>
+In this section, we examin why the finite-sample ECDF variant, ECDF-DKW, is so conservative.
+</p>
+
+<p>
+Recall that we add a finite-sample adjustment \(\epsilon\) to the empirical CDF \(\widehat{F}(P_{all})\), and then compare this quantity to some significance level \(\alpha\). That is, the prediction set with finite-sample guarantees is the set of all labels such that \(\widehat{F}(P_{\text{avg}}) + \epsilon > \alpha\). However, if \(\epsilon\) is already greater than \(\alpha\), then <i>all</i> labels are included in the prediction set, and it becomes unbounded.
+</p>
+
+<p>
+The finite-sample adjustment \(\epsilon\) is a function of the number of samples used to compute the empirical CDF. We find that when this number is less than 1000, there is almost no chance of getting a prediction set that is less than the entirety of the label space.
+</p>
+
+<div>
+  <img src="/assets/images/fig_dkw.png" alt="Figure 3" style="max-width: 100%; height: auto;">
+  <p>
+    Figure 3: This plot illustrates how the finite-sample adjustment \(\epsilon\) changes with the number of samples used to compute the empirical CDF, \(|S_{merge}|\), and the user-selected significance level \(\delta\). In [Stutz'23], \(\epsilon\) is the offset required to ensure a finite sample guarantee of \((1-\alpha)(1-\delta)\). Note that if you offset by more than \(\alpha\), then you have an unbounded prediction set with 100% coverage.
+  </p>
+</div>
