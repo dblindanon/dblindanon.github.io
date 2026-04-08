@@ -1,0 +1,120 @@
+---
+layout: default
+title: CIFAR10H
+permalink: /cifar10h
+---
+
+<style>
+.results-table {
+  border-collapse: collapse;
+  font-size: 0.95em;
+  margin: 0 auto 1.2em auto;
+}
+.results-table caption {
+  text-align: center;
+  font-style: normal;
+  font-weight: bold;
+  margin-bottom: 0.4em;
+  color: #444;
+}
+.results-table th, .results-table td {
+  padding: 6px 16px;
+  text-align: right;
+}
+.results-table th:first-child, .results-table td:first-child {
+  text-align: left;
+}
+.results-table thead tr {
+  border-bottom: 2px solid #aaa;
+}
+.results-table tbody tr:nth-child(even) {
+  background: #f4f4f4;
+}
+.results-table tbody tr:nth-child(4) {
+  border-top: 1px solid #ccc;
+}
+.results-table td.best {
+  font-weight: bold;
+}
+</style>
+
+<h2>R.2: CIFAR-10H Dataset with Artificial Shift</h2>
+
+<p>The results on this page extend the <strong>CIFAR-10H</strong> experiments in the paper (Table 1, Figures 2 and C.2). We add the Robust Filtered variant and report overall ECE in addition to Hard ECE, giving a more complete picture of calibration behavior across both ambiguous and typical images.</p>
+
+<h3>Model and dataset</h3>
+
+<p>CIFAR-10H is the CIFAR-10 dataset augmented with human soft labels collected from ~50 annotators per test image <a href="#fn1">[1]</a>. We define images with low human agreement (max annotation probability &lt; 0.7) as <em>hard</em>. These ambiguous images make up ~3.3% of the test set (327 of 10,000 images). All methods are trained on the standard CIFAR-10 training set (50,000 images), with 10% (5,000 images) withheld for validation and temperature scaling.</p>
+
+<p>The model uses a ResNet-18 backbone adapted for 32&times;32 CIFAR images (3&times;3 initial convolution, no max pooling, three residual blocks producing a 256-dimensional representation). The 256-dimensional output is fed into the MoE classification head, which consists of 4 expert linear classifiers and a 2-layer MLP router. The entire model is trained end-to-end using AdamW (lr=1e-3, weight decay=1e-4) with cosine annealing over 50 epochs. For the robust methods, a 20-epoch warmup period trains with standard cross-entropy before the robust objective is applied.</p>
+
+<h3>Results</h3>
+
+<p>Both robust methods substantially improve calibration on hard images compared to the three baselines, with a modest accuracy cost of 1-3%. Robust MoE achieves the best Hard ECE (0.074), nearly a 4&times; reduction from the baselines (~0.277), though its overall ECE is somewhat higher (0.090 vs. ~0.055), reflecting that the robust objective concentrates optimization on the hardest examples. Robust Filtered resolves this tradeoff: it achieves the best overall ECE (0.014), nearly a 4&times; reduction from baselines, while also substantially improving Hard ECE (0.114). Single Expert, Vanilla MoE, and MoCaE perform similarly on all calibration metrics, confirming that calibrating experts individually does not address mixture-level miscalibration under routing posterior shift.</p>
+
+<p>Temperature scaling further improves overall ECE for both robust methods (Robust Filtered reaches 0.008), but increases Hard ECE for both, likely because the temperature is fit on the full validation set and overcorrects for the rare hard subset. The reliability diagrams below corroborate these findings: on hard images, the baselines concentrate predictions in high-confidence bins despite low accuracy, while the low-confidence bins are nearly empty with large error bars spanning much of the y-axis, indicating that the baselines rarely express uncertainty even on ambiguous images. The robust methods spread confidence more broadly across bins, with tighter error bars and much closer alignment to the diagonal. This improvement generalizes to all images, where Robust Filtered achieves near-perfect calibration.</p>
+
+<p>Below, we report accuracy, calibration, and reliability diagrams for all methods.</p>
+
+<table class="results-table">
+<caption>Table R.2.1: CIFAR-10H &mdash; All Methods (5-trial mean &pm; std)</caption>
+<thead>
+<tr><th>Method</th><th>Acc</th><th>Hard Acc</th><th>ECE</th><th>ECE+TS</th><th>Hard ECE</th><th>Hard ECE+TS</th></tr>
+</thead>
+<tbody>
+<tr><td>Single Expert</td><td class="best">0.922±0.001</td><td class="best">0.648±0.014</td><td>0.054±0.001</td><td>0.048±0.001</td><td>0.276±0.018</td><td>0.256±0.017</td></tr>
+<tr><td>Vanilla MoE</td><td>0.920±0.001</td><td>0.637±0.019</td><td>0.055±0.001</td><td>0.049±0.001</td><td>0.281±0.019</td><td>0.262±0.020</td></tr>
+<tr><td>MoCaE</td><td class="best">0.922±0.002</td><td class="best">0.648±0.010</td><td>0.055±0.002</td><td>0.050±0.002</td><td>0.277±0.009</td><td>0.260±0.007</td></tr>
+<tr><td>Robust MoE</td><td>0.904±0.001</td><td>0.612±0.012</td><td>0.090±0.019</td><td>0.036±0.010</td><td class="best">0.074±0.018</td><td class="best">0.115±0.017</td></tr>
+<tr><td>Robust Filtered</td><td>0.909±0.001</td><td>0.624±0.008</td><td class="best">0.014±0.004</td><td class="best">0.008±0.001</td><td>0.114±0.012</td><td>0.129±0.010</td></tr>
+</tbody>
+</table>
+
+<hr class="thin">
+
+<figure>
+  <a href="{{ "/assets/images/cifar10h_reliability_hard.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/cifar10h_reliability_hard.png" | relative_url }}" alt="Reliability diagrams — hard images" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <a href="{{ "/assets/images/cifar10h_reliability_hard_ts.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/cifar10h_reliability_hard_ts.png" | relative_url }}" alt="Reliability diagrams (with temperature scaling) — hard images" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.2.1: Reliability diagrams on hard images, without temperature scaling (top) and with temperature scaling (bottom).</figcaption>
+</figure>
+
+<hr class="thin">
+
+<figure>
+  <a href="{{ "/assets/images/cifar10h_reliability_all.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/cifar10h_reliability_all.png" | relative_url }}" alt="Reliability diagrams — all images" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <a href="{{ "/assets/images/cifar10h_reliability_all_ts.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/cifar10h_reliability_all_ts.png" | relative_url }}" alt="Reliability diagrams (with temperature scaling) — all images" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.2.2: Reliability diagrams on all images, without temperature scaling (top) and with temperature scaling (bottom).</figcaption>
+</figure>
+
+<hr class="thin">
+
+<h4>Confidence vs. human agreement</h4>
+
+<p>Figure R.2.3 extends <em>Figure 2</em> from the paper to additionally include Single Expert and Robust Filtered. This view directly illustrates the routing posterior shift problem: the baselines (Single Expert, Vanilla MoE, and MoCaE) maintain mean confidence near 0.9 regardless of human agreement level, even for the hardest images where agreement drops below 0.5 and Vanilla MoE accuracy (dashed line) falls to ~0.6. In contrast, Robust MoE and Robust Filtered reduce their confidence as agreement decreases, producing predictions whose uncertainty tracks the actual difficulty of the input. This alignment between model confidence and human uncertainty is the behavior the robust objective is designed to encourage.</p>
+
+<figure>
+  <a href="{{ "/assets/images/cifar10h_confidence_vs_agreement.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/cifar10h_confidence_vs_agreement.png" | relative_url }}" alt="Confidence vs. human agreement" style="max-width: clamp(15rem, 50%, 50rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.2.3: Model confidence vs. human agreement level.</figcaption>
+</figure>
+
+<hr>
+
+<h3>References</h3>
+
+<ol>
+  <li id="fn1">
+    Joshua C. Peterson, Ruairidh M. Battleday, Thomas L. Griffiths, and Olga Russakovsky.
+    "Human Uncertainty Makes Classification More Robust."
+    <em>arXiv preprint arXiv:1908.07086</em>, 2019.
+  </li>
+</ol>

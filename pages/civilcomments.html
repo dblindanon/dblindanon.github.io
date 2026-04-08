@@ -1,0 +1,126 @@
+---
+layout: default
+title: CivilComments
+permalink: /civilcomments
+---
+
+<style>
+.results-table {
+  border-collapse: collapse;
+  font-size: 0.95em;
+  margin: 0 auto 1.2em auto;
+}
+.results-table caption {
+  text-align: center;
+  font-style: normal;
+  font-weight: bold;
+  margin-bottom: 0.4em;
+  color: #444;
+}
+.results-table th, .results-table td {
+  padding: 6px 16px;
+  text-align: right;
+}
+.results-table th:first-child, .results-table td:first-child {
+  text-align: left;
+}
+.results-table thead tr {
+  border-bottom: 2px solid #aaa;
+}
+.results-table tbody tr:nth-child(even) {
+  background: #f4f4f4;
+}
+.results-table tbody tr:nth-child(4) {
+  border-top: 1px solid #ccc;
+}
+.results-table td.best {
+  font-weight: bold;
+}
+</style>
+
+<h2>R.4: CivilComments Text Dataset with Natural Shift</h2>
+
+<p><strong>CivilComments</strong> is a text classification benchmark from <strong>WILDS</strong> <a href="#fn1">[1]</a>, where the goal is to predict whether an online comment is toxic under a natural subpopulation shift setting. This experiment extends our approach to a transformer-based architecture operating on text, demonstrating that the robust training framework is not limited to convolutional backbones or vision tasks.</p>
+
+<h3>Model and dataset</h3>
+
+<p>The model uses a DistilBERT <a href="#fn2">[2]</a> backbone (66M parameters, pretrained on English text) as the feature extractor. Each comment is tokenized and passed through the full transformer encoder; the output (768-dimensional [CLS] representation) is then fed into our MoE classification head, where the router and expert networks operate on these learned text representations to produce the final toxicity prediction. The entire model, including the backbone and MoE head, is fine-tuned end-to-end.</p>
+
+<p>The CivilComments dataset contains approximately 270,000 training comments and 134,000 test comments. Of the test set, roughly 41% (55,000 comments) mention at least one identity group. These comments are considered <em>hard</em>, as toxicity classifiers generally have high false positive rates on even benign mentions of minority groups. This is a much larger hard subpopulation than CIFAR-10H, where only 3% of the test set is hard. Unlike the PACS experiments, no data is withheld during training: the model trains on all training comments using only the toxic/non-toxic label. The identity group annotations are used solely at evaluation time to define the hard subset.</p>
+
+<h3>Results</h3>
+
+<p>All three robust methods improve calibration with essentially no accuracy cost. This is likely because the pretrained DistilBERT backbone stabilizes fine-tuning, and because the hard subpopulation is large enough (41%) to provide strong training signal. Robust MoE achieves the best overall calibration both before (ECE 0.025, Hard ECE 0.037) and after temperature scaling (ECE+TS 0.018, Hard ECE+TS 0.029).</p>
+
+<p>Below, we report accuracy, calibration, and reliability diagrams for each of our methods.</p>
+
+<table class="results-table">
+<caption>Table R.4.1: CivilComments &mdash; All Methods (5-trial mean &pm; std)</caption>
+<thead>
+<tr><th>Method</th><th>Acc</th><th>Hard Acc</th><th>ECE</th><th>ECE+TS</th><th>Hard ECE</th><th>Hard ECE+TS</th></tr>
+</thead>
+<tbody>
+<tr><td>Single Expert</td><td>0.913±0.002</td><td>0.867±0.002</td><td>0.069±0.001</td><td>0.064±0.001</td><td>0.105±0.001</td><td>0.097±0.001</td></tr>
+<tr><td>Vanilla MoE</td><td>0.912±0.001</td><td>0.866±0.002</td><td>0.071±0.001</td><td>0.065±0.001</td><td>0.108±0.002</td><td>0.100±0.002</td></tr>
+<tr><td>MoCaE</td><td>0.913±0.001</td><td>0.867±0.002</td><td>0.074±0.001</td><td>0.069±0.001</td><td>0.112±0.001</td><td>0.106±0.001</td></tr>
+<tr><td>Robust MoE</td><td>0.914±0.000</td><td>0.868±0.000</td><td class="best">0.025±0.001</td><td class="best">0.018±0.001</td><td class="best">0.037±0.002</td><td class="best">0.029±0.002</td></tr>
+<tr><td>Robust Filtered</td><td class="best">0.915±0.002</td><td class="best">0.869±0.004</td><td>0.027±0.004</td><td>0.021±0.003</td><td>0.040±0.005</td><td>0.031±0.004</td></tr>
+</tbody>
+</table>
+
+<hr class="thin">
+
+<figure>
+  <a href="{{ "/assets/images/civilcomments_reliability_all.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/civilcomments_reliability_all.png" | relative_url }}" alt="Reliability diagrams — all comments" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <a href="{{ "/assets/images/civilcomments_reliability_all_ts.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/civilcomments_reliability_all_ts.png" | relative_url }}" alt="Reliability diagrams (with temperature scaling) — all comments" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.4.1: Reliability diagrams on all comments, without temperature scaling (top) and with temperature scaling (bottom).</figcaption>
+</figure>
+
+<hr class="thin">
+
+<figure>
+  <a href="{{ "/assets/images/civilcomments_reliability_hard.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/civilcomments_reliability_hard.png" | relative_url }}" alt="Reliability diagrams — hard comments" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <a href="{{ "/assets/images/civilcomments_reliability_hard_ts.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/civilcomments_reliability_hard_ts.png" | relative_url }}" alt="Reliability diagrams (with temperature scaling) — hard comments" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.4.2: Reliability diagrams on hard comments only, without temperature scaling (top) and with temperature scaling (bottom).</figcaption>
+</figure>
+
+<hr class="thin">
+
+<h4>Group-Level ECE and accuracy</h4>
+
+<p>We evaluate calibration and accuracy across 8 demographic identity groups: Male, Female, LGBTQ, Christian, Muslim, Other Religions, Black, and White. Comments can belong to multiple groups. Across all groups, the robust methods (Robust MoE and Robust Filtered) consistently and substantially reduce ECE compared to the baselines, while all methods achieve similar accuracy. For example, on the LGBTQ subgroup, where baseline ECE exceeds 0.17, Robust MoE reduces it to 0.060. This pattern holds uniformly: the calibration improvement is not driven by a single group but reflects a broad correction across all subpopulations.</p>
+
+<figure>
+  <a href="{{ "/assets/images/civilcomments_group_ece.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/civilcomments_group_ece.png" | relative_url }}" alt="Group-level ECE breakdown" style="max-width: clamp(15rem, 50%, 50rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <a href="{{ "/assets/images/civilcomments_group_accuracy.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/civilcomments_group_accuracy.png" | relative_url }}" alt="Group-level accuracy breakdown" style="max-width: clamp(15rem, 50%, 50rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.4.3: ECE (top) and accuracy (bottom) by demographic identity group.</figcaption>
+</figure>
+
+<hr>
+
+<h3>References</h3>
+
+<ol>
+  <li id="fn1">
+    Pang Wei Koh, Shiori Sagawa, Henrik Marklund, Sang Michael Xie, Marvin Zhang, Akshay Balsubramani, Weihua Hu, Michihiro Yasunaga, Richard Lanas Phillips, Irena Gao, Tony Lee, Etienne David, Ian Stavness, Wei Guo, Berton Earnshaw, Imran Haque, Sara M. Beery, Jure Leskovec, Anshul Kundaje, Emma Pierson, Sergey Levine, Chelsea Finn, and Percy Liang.
+    "WILDS: A Benchmark of in-the-Wild Distribution Shifts."
+    <em>Proceedings of the 38th International Conference on Machine Learning (ICML)</em>, PMLR 139:5637–5664, 2021.
+  </li>
+  <li id="fn2">
+    Victor Sanh, Lysandre Debut, Julien Chaumond, and Thomas Wolf.
+    "DistilBERT, a Distilled Version of BERT: Smaller, Faster, Cheaper and Lighter."
+    <em>arXiv preprint arXiv:1910.01108</em>, 2019.
+  </li>
+</ol>

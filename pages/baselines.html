@@ -1,0 +1,251 @@
+---
+layout: default
+title: Additional Baselines
+permalink: /baselines
+---
+
+<style>
+.results-table {
+  border-collapse: collapse;
+  font-size: 0.95em;
+  margin: 0 auto 1.2em auto;
+}
+.results-table caption {
+  text-align: center;
+  font-style: normal;
+  font-weight: bold;
+  margin-bottom: 0.4em;
+  color: #444;
+}
+.results-table th, .results-table td {
+  padding: 6px 16px;
+  text-align: right;
+}
+.results-table th:first-child, .results-table td:first-child {
+  text-align: left;
+}
+.results-table thead tr {
+  border-bottom: 2px solid #aaa;
+}
+.results-table tbody tr:nth-child(even) {
+  background: #f4f4f4;
+}
+.results-table tbody tr:nth-child(6) {
+  border-top: 1px solid #ccc;
+}
+.results-table td.best {
+  font-weight: bold;
+}
+.results-table tr.collapsed td {
+  color: #999;
+}
+</style>
+
+<h2>R.5: Additional Baselines</h2>
+
+<p>This page includes experiments with additional baselines, following the guidance of Reviewer 7bYD. We present results on CIFAR-10H, PACS, and CivilComments. (Please see the dataset-specific webpages for more detailed discussion of these datasets and the models we use to evaluate them.)</p>
+
+<h3>Baseline methods</h3>
+
+<h4>Frequency-aware Gradient Rectification (FGR) <a href="#fn1">[1]</a></h4>
+
+<p>FGR is a training procedure designed to improve calibration under covariate shift for single models. Each training step computes two gradients: one from the main classification loss on a frequency-perturbed version of the batch, and one from a differentiable calibration loss (soft ECE <a href="#fn2">[2]</a></h4>) on the original batch. If these two gradients conflict&mdash;i.e., their dot product is negative, meaning improving classification would worsen calibration&mdash;then the main gradient is projected onto the hyperplane orthogonal to the calibration gradient, removing the conflicting component. When the gradients agree, the main gradient is used as-is.</p>
+
+<p>The frequency perturbation works by applying JPEG-style \(8 \times 8\) block Discrete Cosine Transform (DCT) filtering to a small random fraction (\(\rho = 5\%\)) of training images. Images are converted to YCbCr color space, each \(8 \times 8\) block is transformed, quantized using scaled standard JPEG quantization matrices, and reconstructed via inverse DCT. The quantization strength is randomly sampled from \(\lambda \in \{15, 18, 25\}\) per image, simulating mild frequency-domain corruptions. This is meant to make the model robust to the kind of high-frequency perturbations that arise in real-world covariate shift scenarios.</p>
+
+<p>Matching the paper, we use cross-entropy as the main loss and soft ECE as the calibration loss, and we use vanilla warmup for 20 epochs before switching to gradient rectification. Each batch requires two forward passes and two backward passes (one per objective), plus CPU-based DCT filtering, making training roughly 2.5x slower per epoch than vanilla.</p>
+
+<h4>ReLU MoE (ReMoE) <a href="#fn3">[3]</a></h4>
+
+<p>ReMoE replaces the standard MoE softmax routing function with a ReLU activation. For each expert, the router computes a gate value \(g_e = \text{ReLU}(\mathbf{x}\mathbf{W}_e)\), and each expert is active if and only if its gate value is positive. Thus, there is no softmax normalization and no top-\(k\) selection; experts are independently gated, and the number of active experts varies freely from sample to sample. The final output is the softmax of the gate-weighted sum of expert logits:
+\[ p(y \mid \mathbf{x}) = \frac{\exp\!\bigl(\sum_{e} g_e \cdot z_e^y\bigr)}{\sum_{c} \exp\!\bigl(\sum_{e} g_e \cdot z_e^c \bigr)}, \]
+where \(z_e^c\) is expert \(e\)'s logit for class \(c\).
+</p>
+
+<p>Without top-\(k\) selection, sparsity must be encouraged through regularization. ReMoE adds a load-balanced \(\ell_1\) penalty on gate activations that penalizes overused experts more heavily to discourage collapse to a single expert.
+This penalty is scaled by a coefficient \(\lambda\) that is initialized at \(\lambda_0 = 10^{-8}\) and updated each batch: \(\lambda\) is multiplied by \(\alpha = 1.2\) when the batch is less sparse than the target and divided by \(\alpha\) when it is more sparse, encouraging the model to converges toward the desired sparsity level.
+</p>
+
+We use the paper's default hyperparameters in our implementation: \(\lambda = 10^{-8}\) and \(\alpha = 1.2\) to target \(k = 1\) active experts (out of \(E = 4\)). We additionally clamp \(\lambda\) to \([10^{-12}, 1.0]\) to prevent runaway growth. (This was not necessary in the ReMoE paper because its large transformer setting stabilizes quickly, but with only 4 experts and 128-sample batches, our \(\lambda\) explodes before the model adapts.)</p>
+
+<h4>Comparing calibration under shift for image classification <a href="#fn4">[4]</a></h4>
+
+<p>This paper is not a traditional baseline in the sense that they propose a method to compare against; instead, the authors argue that for single models under distribution shift, post-hoc calibration with a small amount of semantic out-of-distribution (OOD) data is often more effective than more complex methods that use OOD data during calibration. For ensembles, the authors suggest that OOD data is unnecessary for maintaining calibration under shift, and that the best approach is to calibrate before ensembling, rather than calibrating the final averaged predictor afterward.
+</p>
+
+<p>For our setting, the most relevant part of this paper is the result on calibrating ensembles. Ensembles are not the same thing as MoE, but if we were to draw an analogy between the set of ensemble members and the set of MoE experts, then the suggested method for MoE would be to calibrate the experts before they are combined. This is essentially our MoCaE baseline, which we already include in our comparisons.</p>
+
+<h3>Combining our robust methods with the baselines</h3>
+
+<p>A key point about both FGR and ReMoE is that they operate on different axes than our robust training methods. Robust MoE and Robust Filtered modify the <em>training objective</em>, FGR modifies the <em>gradient update rule</em>, and ReMoE modifies the <em>routing architecture</em>. In principle, these are independent design choices that can be freely combined.</p>
+
+<p><strong>ReMoE</strong> is purely a routing mechanism change, and is entirely agnostic to the loss function used during training. This means that combining our robust methods with ReMoE is straightforward, as we can simply run the robust training objective on a ReMoE model instead of a standard softmax MoE. We implement ReMoE + Robust MoE and ReMoE + Robust Filtered, and we add the ReMoE sparsity regularizer on top of whatever robust loss is used.</p>
+
+<p><strong>FGR</strong> is a training procedure, so combining it with our robust methods requires deciding which method provides the main loss for the rectification framework. We combine FGR with Robust MoE by substituting CVaR (our method) for cross-entropy as the main loss: the main gradient is computed from the CVaR loss on the frequency-perturbed batch, while the calibration gradient (soft ECE on the original batch) and the rectification logic are unchanged. We note that the motivation for this combination is weaker, as FGR was designed for covariate shift on single models, not MoE routing fragility, and its DCT-based frequency filtering targets the kind of high-frequency perturbations that arise from image corruptions, which have essentially no connection to the subpopulation structure that drives \(P(Z|X)\) shift.
+</p>
+
+<hr>
+
+<h3>Results</h3>
+
+<p>Below, we report accuracy, calibration, and reliability diagrams for CIFAR-10H, PACS, and CivilComments. For the reliability diagram figures, we report baselines by themselves on the top row, and our robust methods, by themselves and combined with baselines, on the bottom row.</p>
+
+<h4>CIFAR-10H</h4>
+
+<p>While Single Expert and MoCaE give the highest accuracy, Robust Filtered and FGR+Robust yield significantly more well-calibrated models for only a slight drop in accuracy. Compared to Single Expert and MoCaE, the new baselines FGR and ReMoE also have slightly lower accuracy and slightly better calibration, but are generally less well-calibrated than Robust Filtered and FGR+Robust. 
+</p> 
+
+<p> As the results show, complications arise when combining ReMoE with the robust objectives in this setting. ReMoE's adaptive sparsity regularizer multiplies its sparse penalty coefficient \(\lambda\) by 1.2 for every batch where too many experts are active. Meanwhile, CVaR's aggressive reweighting of high-loss samples produces large, noisy gradients that keep triggering these increases. Once \(\lambda\) grows large enough, the sparse penalty overwhelms the task loss and drives all gates to zero. The model then outputs uniform predictions (1/num_classes), and the resulting weak gradients cannot reopen the gates, making the collapse irreversible. This is worse with more classes, as weaker gradients make recovery harder; thus, this problem is much more pronounced in CIFAR-10H (10 classes) than PACS (7 classes) and CivilComments (2 classes).
+</p> 
+
+<hr class="thin">
+
+<table class="results-table">
+<caption>Table R.6.1: CIFAR-10H: &mdash; All Methods (5-trial mean &pm; std)</caption>
+<thead>
+<tr><th>Method</th><th>Acc</th><th>Hard Acc</th><th>ECE</th><th>ECE+TS</th><th>Hard ECE</th><th>Hard ECE+TS</th></tr>
+</thead>
+<tbody>
+<tr><td>Single Expert</td><td class="best">0.922±0.001</td><td>0.648±0.014</td><td>0.054±0.001</td><td>0.048±0.001</td><td>0.276±0.018</td><td>0.256±0.017</td></tr>
+<tr><td>Vanilla MoE</td><td>0.920±0.001</td><td>0.637±0.019</td><td>0.055±0.001</td><td>0.049±0.001</td><td>0.281±0.019</td><td>0.262±0.020</td></tr>
+<tr><td>MoCaE</td><td>0.920±0.002</td><td class="best">0.648±0.010</td><td>0.055±0.002</td><td>0.050±0.002</td><td>0.277±0.009</td><td>0.260±0.007</td></tr>
+<tr><td>FGR</td><td>0.918±0.002</td><td>0.646±0.011</td><td>0.052±0.001</td><td>0.045±0.002</td><td>0.260±0.013</td><td>0.239±0.014</td></tr>
+<tr><td>ReMoE</td><td>0.915±0.003</td><td>0.634±0.016</td><td>0.050±0.007</td><td>0.031±0.016</td><td>0.267±0.028</td><td>0.191±0.097</td></tr>
+<tr><td>Robust MoE</td><td>0.904±0.001</td><td>0.612±0.012</td><td>0.090±0.019</td><td>0.036±0.010</td><td>0.074±0.018</td><td>0.115±0.017</td></tr>
+<tr><td>Robust Filtered</td><td>0.909±0.004</td><td>0.627±0.017</td><td class="best">0.013±0.004</td><td class="best">0.007±0.002</td><td>0.123±0.017</td><td>0.139±0.016</td></tr>
+<tr class="collapsed"><td>ReMoE + Robust</td><td>0.100±0.000</td><td>0.092±0.000</td><td>0.000±0.000</td><td>0.000±0.000</td><td>0.008±0.000</td><td>0.008±0.000</td></tr>
+<tr class="collapsed"><td>ReMoE + Rob.Filt.</td><td>0.251±0.303</td><td>0.191±0.200</td><td>0.019±0.050</td><td>0.006±0.014</td><td>0.027±0.037</td><td>0.031±0.045</td></tr>
+<tr><td>FGR + Robust</td><td>0.903±0.003</td><td>0.600±0.015</td><td>0.083±0.010</td><td>0.028±0.003</td><td class="best">0.065±0.012</td><td class="best">0.108±0.013</td></tr>
+</tbody>
+</table>
+
+<p>Note: we gray out the ReMoE + Robust and ReMoE + Robust Filtered rows as their accuracy has collapsed and their models are not reporting meaningful predictions. 
+</p> 
+
+<hr class="thin">
+
+<figure>
+  <a href="{{ "/assets/images/baselines_cifar10h_reliability_all.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/baselines_cifar10h_reliability_all.png" | relative_url }}" alt="Reliability diagrams — all images" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.6.1: Reliability diagrams on all images.</figcaption>
+</figure>
+
+<hr class="thin">
+
+<figure>
+  <a href="{{ "/assets/images/baselines_cifar10h_reliability_hard.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/baselines_cifar10h_reliability_hard.png" | relative_url }}" alt="Reliability diagrams — hard images" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.6.2: Reliability diagrams on hard images ONLY.</figcaption>
+</figure>
+
+<hr>
+
+<h4>PACS</h4>
+
+<p>The robust methods achieve the highest accuracy and the best ECE on the PACS Sketch domain. Although in this setting, the robust methods perform best alone, FGR+Robust also improves ECE over non-robust baselines at virtually no cost to accuracy. ReMoE+Robust and ReMoE+Robust Filtered struggle with accuracy, for similar reasons as discussed with the CIFAR-10H dataset.
+</p>
+
+<hr class="thin">
+
+<table class="results-table">
+<caption>Table R.6.2: PACS (target=Sketch) &mdash; All Methods (5-trial mean &pm; std)</caption>
+<thead>
+<tr><th>Method</th><th>Acc</th><th>ECE</th><th>ECE+TS</th></tr>
+</thead>
+<tbody>
+<tr><td>Single Expert</td><td>0.637±0.025</td><td>0.217±0.030</td><td>0.230±0.030</td></tr>
+<tr><td>Vanilla MoE</td><td>0.667±0.009</td><td>0.183±0.017</td><td>0.189±0.011</td></tr>
+<tr><td>MoCaE</td><td>0.667±0.012</td><td>0.184±0.017</td><td>0.192±0.016</td></tr>
+<tr><td>FGR</td><td>0.667±0.012</td><td>0.176±0.020</td><td>0.187±0.018</td></tr>
+<tr><td>ReMoE</td><td>0.647±0.035</td><td>0.109±0.045</td><td>0.138±0.045</td></tr>
+<tr><td>Robust MoE</td><td>0.666±0.033</td><td class="best">0.033±0.017</td><td class="best">0.072±0.025</td></tr>
+<tr><td>Robust Filtered</td><td class="best">0.670±0.020</td><td>0.065±0.030</td><td>0.093±0.028</td></tr>
+<tr><td>ReMoE + Robust</td><td>0.445±0.188</td><td>0.084±0.065</td><td>0.085±0.071</td></tr>
+<tr><td>ReMoE + Rob.Filt.</td><td>0.483±0.167</td><td>0.089±0.057</td><td>0.108±0.061</td></tr>
+<tr><td>FGR + Robust</td><td>0.660±0.023</td><td>0.072±0.025</td><td>0.105±0.026</td></tr>
+</tbody>
+</table>
+
+<hr class="thin">
+
+<figure>
+  <a href="{{ "/assets/images/baselines_pacs_sketch_reliability.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/baselines_pacs_sketch_reliability.png" | relative_url }}" alt="Reliability diagrams — PACS Sketch" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.6.3: Reliability diagrams on PACS (target=Sketch).</figcaption>
+</figure>
+
+<hr>
+
+<h4>CivilComments</h4>
+
+<p>As with PACS, the robust methods achieve the highest accuracy and the best ECE on CivilComments, as well as the best ECE on the hard subset as well. Note that, with only two classes, routing collapse with ReMoE+Robust and ReMoE+Robust Filtered becomes less of an issue. Although these methods have lower accuracy than the other baselines, they are clearly still predictive.
+</p>
+
+<hr class="thin">
+
+<table class="results-table">
+<caption>Table R.6.3: CivilComments &mdash; All Methods (5-trial mean &pm; std)</caption>
+<thead>
+<tr><th>Method</th><th>Acc</th><th>Hard Acc</th><th>ECE</th><th>ECE+TS</th><th>Hard ECE</th><th>Hard ECE+TS</th></tr>
+</thead>
+<tbody>
+<tr><td>Single Expert</td><td>0.913±0.002</td><td>0.867±0.002</td><td>0.069±0.001</td><td>0.064±0.001</td><td>0.105±0.001</td><td>0.097±0.001</td></tr>
+<tr><td>Vanilla MoE</td><td>0.912±0.001</td><td>0.866±0.002</td><td>0.071±0.001</td><td>0.065±0.001</td><td>0.108±0.002</td><td>0.100±0.002</td></tr>
+<tr><td>MoCaE</td><td>0.913±0.001</td><td>0.867±0.002</td><td>0.074±0.001</td><td>0.069±0.001</td><td>0.112±0.001</td><td>0.106±0.001</td></tr>
+<tr><td>FGR</td><td>0.906±0.003</td><td>0.857±0.005</td><td>0.044±0.004</td><td>0.035±0.004</td><td>0.065±0.006</td><td>0.053±0.006</td></tr>
+<tr><td>ReMoE</td><td>0.896±0.008</td><td>0.846±0.010</td><td>0.116±0.135</td><td>0.110±0.138</td><td>0.124±0.105</td><td>0.115±0.110</td></tr>
+<tr><td>Robust MoE</td><td>0.914±0.000</td><td>0.868±0.000</td><td class="best">0.025±0.001</td><td class="best">0.018±0.001</td><td class="best">0.037±0.002</td><td class="best">0.029±0.002</td></tr>
+<tr><td>Robust Filtered</td><td class="best">0.915±0.002</td><td class="best">0.869±0.004</td><td>0.027±0.004</td><td>0.021±0.003</td><td>0.040±0.005</td><td>0.031±0.004</td></tr>
+<tr><td>ReMoE + Robust</td><td>0.890±0.008</td><td>0.839±0.010</td><td>0.318±0.137</td><td>0.317±0.138</td><td>0.278±0.112</td><td>0.278±0.114</td></tr>
+<tr><td>ReMoE + Rob.Filt.</td><td>0.890±0.007</td><td>0.838±0.007</td><td>0.250±0.167</td><td>0.251±0.166</td><td>0.222±0.137</td><td>0.224±0.136</td></tr>
+<tr><td>FGR + Robust</td><td>0.903±0.004</td><td>0.853±0.006</td><td>0.054±0.008</td><td>0.047±0.003</td><td>0.065±0.010</td><td>0.057±0.005</td></tr>
+</tbody>
+</table>
+
+<hr class="thin">
+
+<figure>
+  <a href="{{ "/assets/images/baselines_civilcomments_reliability_all.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/baselines_civilcomments_reliability_all.png" | relative_url }}" alt="Reliability diagrams — all comments" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.6.4: Reliability diagrams on all comments.</figcaption>
+</figure>
+
+<hr class="thin">
+
+<figure>
+  <a href="{{ "/assets/images/baselines_civilcomments_reliability_hard.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/baselines_civilcomments_reliability_hard.png" | relative_url }}" alt="Reliability diagrams — hard comments" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.6.5: Reliability diagrams on hard comments only.</figcaption>
+</figure>
+
+<hr>
+
+<h3>References</h3>
+
+<ol>
+  <li id="fn1">
+    Zhang, Yilin, Cai Xu, You Wu, Ziyu Guan, and Wei Zhao. 
+    "Gradient Rectification for Robust Calibration under Distribution Shift."
+    <em>arXiv preprint arXiv:2508.19830</em>, 2025.
+  </li>
+  <li id="fn2">
+    Karandikar, Archit, Nicholas Cain, Dustin Tran, Balaji Lakshminarayanan, Jonathon Shlens, Michael C. Mozer, and Becca Roelofs.
+    "Soft calibration objectives for neural networks."
+    <em>Advances in Neural Information Processing Systems (NeurIPS) 34</em>, 2021.
+  </li>
+  <li id="fn3">
+    Wang, Ziteng, Jun Zhu, and Jianfei Chen.
+    "Remoe: Fully Differentiable Mixture-of-Experts with ReLU Routing."
+    <em>The 13th International Conference on Learning Representations (ICLR)</em>, 2025.
+  </li>
+  <li id="fn4">
+    Roschewitz, Melanie, Raghav Mehta, Fabio De Sousa Ribeiro, and Ben Glocker.
+    "Where are we with calibration under dataset shift in image classification?"
+    <em>Transactions on Machine Learning Research (TMLR)</em>, 2025.
+  </li>
+</ol>

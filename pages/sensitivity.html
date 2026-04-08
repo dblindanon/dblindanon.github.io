@@ -1,0 +1,104 @@
+---
+layout: default
+title: Sensitivity Analysis
+permalink: /sensitivity
+---
+
+<style>
+.results-table {
+  border-collapse: collapse;
+  font-size: 0.95em;
+  margin: 0 auto 1.2em auto;
+}
+.results-table caption {
+  text-align: center;
+  font-style: normal;
+  font-weight: bold;
+  margin-bottom: 0.4em;
+  color: #444;
+}
+.results-table th, .results-table td {
+  padding: 6px 16px;
+  text-align: right;
+}
+.results-table th:first-child, .results-table td:first-child {
+  text-align: left;
+}
+.results-table thead tr {
+  border-bottom: 2px solid #aaa;
+}
+.results-table tbody tr:nth-child(even) {
+  background: #f4f4f4;
+}
+.results-table td.best {
+  font-weight: bold;
+}
+</style>
+
+<h2>R.6: Hyperparameter sensitivity analysis</h2>
+
+<h3>Hyperparameters</h3>
+
+<p>The robust MoE objective introduces a single new hyperparameter beyond those of standard MoE training:</p>
+
+<div style="margin-left: 1.5em; padding-left: 1em; border-left: 3px solid #ddd;">
+<p>\(\Gamma\): The density ratio bound that controls the size of the DRO uncertainty set \(W_\Gamma\). The adversary can place weight up to \(\Gamma\) on any example, so at most a \(1/\Gamma\) fraction of the data receives elevated weight. During training, we average the top-\(\lceil n/\Gamma \rceil\) losses in each minibatch. We select \(\Gamma\) by minimizing validation ECE on a held-out 10% split of the CIFAR-10H training data.</p>
+</div>
+
+<p>We also use one training schedule parameter that is standard in distributionally robust optimization:</p>
+
+<div style="margin-left: 1.5em; padding-left: 1em; border-left: 3px solid #ddd;">
+<p>\(n_{\text{warmup}}\): Number of ERM pre-training epochs before switching to the robust objective. ERM warmup is standard practice in DRO to allow the model to learn useful representations before the robust reweighting takes effect. Warmup is selected jointly with \(\Gamma\) by the same validation criterion. Higher \(\Gamma\) seems to require more warmup, perhaps since more aggressive reweighting requires more stable representations to perform well.</p>
+</div>
+
+<p>All other hyperparameters (learning rate, batch size, number of experts, router architecture, backbone, weight decay, optimizer, scheduler) are shared with vanilla MoE and are held constant across all methods in our experiments.</p>
+
+<hr class="thin">
+
+<h3>Validation-based hyperparameter selection</h3>
+
+<p>We select \((\Gamma, n_{\text{warmup}})\) jointly by minimizing ECE on a held-out 10% split of the CIFAR-10H training data. This validation set is drawn from the training distribution and contains no subpopulation shift information.</p>
+
+<p>We run validation over a grid of 8 \(\Gamma\) values &times; 8 \(n_{\text{warmup}}\) values, each trained with 5 seeds. The top 5 configurations by validation ECE are:</p>
+
+<table class="results-table">
+<caption>Top 5 configurations by validation ECE</caption>
+<thead>
+<tr><th>\(\Gamma\)</th><th>Warmup</th><th>Val ECE</th><th>Val Acc</th></tr>
+</thead>
+<tbody>
+<tr><td>1.2</td><td>30</td><td class="best">0.009</td><td>0.918</td></tr>
+<tr><td>1.1</td><td>20</td><td>0.011</td><td>0.907</td></tr>
+<tr><td>1.1</td><td>30</td><td>0.012</td><td class="best">0.919</td></tr>
+<tr><td>1.1</td><td>25</td><td>0.015</td><td>0.915</td></tr>
+<tr><td>1.2</td><td>25</td><td>0.015</td><td>0.913</td></tr>
+</tbody>
+</table>
+
+<p>All top configurations fall in \(\Gamma \in [1.1, 1.2]\) and warmup \(\in [20, 30]\). The validation-selected setting already improves calibration substantially over the baselines, and ablation confirms that performance is stable across the broader range \(\Gamma \in [1.0, 1.6]\).</p>
+
+<hr class="thin">
+
+<h3>Sensitivity Analysis</h3>
+
+<h4>Sensitivity of \(\Gamma\) and \(n_{warmup}\) parameters</h4>
+
+<p>We sweep \(\Gamma \in \{1.0, 1.1, 1.2, 1.4, 1.5, 1.6, 1.9, 2.0\}\) and warmup \(\in \{0, 5, 10, 15, 20, 25, 30, 40\}\) on CIFAR-10H, training 5 seeds per configuration (320 runs total).</p>
+
+<figure>
+  <a href="{{ "/assets/images/ablation_heatmap_gamma.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/ablation_heatmap_gamma.png" | relative_url }}" alt="Ablation heatmap: Gamma vs warmup" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.7.1: Heatmap of Hard ECE (left) and overall ECE (right) across \(\Gamma\) and \(n_{warmup}\) settings.</figcaption>
+</figure>
+
+<p>The left heatmap shows that Robust MoE achieves good Hard ECE across a broad region of the grid, across \(\Gamma \in [1.2, 1.6]\) and warmup \(\in [0, 30]\). Comparing this to the right heatmap reveals the core tradeoff, where configurations with the best Hard ECE (larger \(\Gamma\), moderate warmup) have degraded overall ECE.</p>
+
+<figure>
+  <a href="{{ "/assets/images/ablation_1d_slices_gamma.png" | relative_url }}" target="_blank">
+    <img src="{{ "/assets/images/ablation_1d_slices_gamma.png" | relative_url }}" alt="1D ablation slices" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;">
+  </a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.7.2: 1D slices through the default \(\Gamma\) and \(n_{warmup}\) values.</figcaption>
+</figure>
+
+<p>In these plots, we hold one parameter constant at its default value and sweep the other parameter to understand its effect. Holding warmup=30, Hard ECE improves from \(\Gamma = 1.0\) to roughly \(\Gamma = 1.8\), then degrades at higher values. Overall ECE degrades sharply above \(\Gamma = 1.4\). Holding \(\Gamma = 1.2\), Hard ECE is best at warmup \(\in [0, 15]\) with smooth degradation outside this range, and Overall ECE is best at warmup \(\in [20, 30]\). Accuracy remains stable across warmup \(\in [20, 40]\).</p>

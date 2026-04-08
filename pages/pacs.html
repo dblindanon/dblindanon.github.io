@@ -1,0 +1,134 @@
+---
+layout: default
+title: PACS
+permalink: /pacs
+---
+
+<style>
+.results-table {
+  border-collapse: collapse;
+  font-size: 0.95em;
+  margin: 0 auto 1.2em auto;
+}
+.results-table caption {
+  text-align: center;
+  font-style: normal;
+  font-weight: bold;
+  margin-bottom: 0.4em;
+  color: #444;
+}
+.results-table th, .results-table td {
+  padding: 6px 16px;
+  text-align: right;
+}
+.results-table th:first-child, .results-table td:first-child {
+  text-align: left;
+}
+.results-table thead tr {
+  border-bottom: 2px solid #aaa;
+}
+.results-table tbody tr:nth-child(even) {
+  background: #f4f4f4;
+}
+.results-table tbody tr:nth-child(4) {
+  border-top: 1px solid #ccc;
+}
+.results-table td.best {
+  font-weight: bold;
+}
+</style>
+
+<h2>R.3: PACS Dataset with Natural Shift</h2>
+
+<p><strong>PACS</strong> is a widely used benchmark for evaluating image models under domain shift <a href="#fn1">[1]</a>. It contains object categories from four domains: Photo, Art Painting, Cartoon, and Sketch. Because these domains have visually distinct styles, evaluation on PACS is useful for studying whether model behavior remains stable when the image style changes.</p>
+
+<figure>
+  <a href="{{ "/assets/images/pacs_examples.png" | relative_url }}" target="_blank"><img src="{{ "/assets/images/pacs_examples.png" | relative_url }}" alt="Example images from the PACS dataset" style="max-width: clamp(30rem, 80%, 62rem); height: auto; display: block; margin: 0 auto;"></a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.3.1: Example images from the PACS dataset across four domains.</figcaption>
+</figure>
+
+<h3>Model and dataset</h3>
+
+<p>The model uses a ResNet-18 backbone pretrained on ImageNet as the shared feature extractor. The 512-dimensional output is fed into the MoE classification head, which consists of 4 expert classifiers and a 2-layer MLP router. The entire model, backbone and MoE head, is fine-tuned end-to-end using AdamW with a learning rate of 1e-4 and cosine annealing over 50 epochs.</p>
+
+<p>PACS contains approximately 10,000 images of 7 object categories (dog, elephant, giraffe, guitar, horse, house, person) across four visually distinct domains. Following the standard leave-one-domain-out protocol, the model trains on three source domains and is evaluated on the held-out target domain. For our evaluation, Photo, Art Painting, Cartoon, and Sketch all take turns as the target domain. 10% of the training data is withheld for validation and temperature scaling.</p>
+
+<h3>Results</h3>
+
+<p>Across all four target domains, the robust methods (Robust MoE and Robust Filtered) substantially improve calibration compared to the baselines, generally at a small cost to accuracy. The improvements are most striking on the hardest shifts. On Sketch, where baseline ECE exceeds 0.18, Robust MoE reduces it to 0.033 while slightly improving accuracy over the Single Expert baseline. On Cartoon, Robust MoE cuts ECE from 0.17 to 0.11 with less than 1% drop in accuracy. On Photo, where all methods already perform well, the robust methods still achieve the lowest ECE (0.016-0.018) with only about 1% drop in accuracy. Evaluation on Art Painting is the only case where Robust MoE shows a larger accuracy drop (0.692 vs. 0.780 for Single Expert). Robust Filtered partially recovers this, achieving 0.732 accuracy while still obtaining the best ECE (0.075) across all methods.</p>
+
+<p>The reliability diagrams reinforce these findings and reveal a qualitative pattern beyond what ECE captures alone. On the harder domains (Art, Cartoon, Sketch), the baselines are all overconfident: most predictions fall in high-confidence bins (0.7-1.0), and since the low-confidence bins are nearly empty, they have large error bars that span much of the y-axis. In contrast, the robust methods distribute predictions more broadly across confidence bins, with tighter error bars and closer alignment to the diagonal.</p>
+
+<p>Below, we report accuracy, calibration, and reliability diagrams for each of the four test domains.</p>
+
+<table class="results-table">
+<caption>Table R.3.1: PACS &mdash; Accuracy by Target Domain (5-trial mean &pm; std)</caption>
+<thead>
+<tr><th>Method</th><th>Photo</th><th>Art</th><th>Cartoon</th><th>Sketch</th></tr>
+</thead>
+<tbody>
+<tr><td>Single Expert</td><td class="best">0.943±0.004</td><td class="best">0.780±0.006</td><td>0.730±0.013</td><td>0.637±0.025</td></tr>
+<tr><td>Vanilla MoE</td><td>0.941±0.002</td><td>0.767±0.007</td><td class="best">0.732±0.013</td><td>0.667±0.009</td></tr>
+<tr><td>MoCaE</td><td class="best">0.943±0.004</td><td>0.777±0.005</td><td>0.720±0.016</td><td>0.667±0.012</td></tr>
+<tr><td>Robust MoE</td><td>0.931±0.006</td><td>0.692±0.023</td><td>0.723±0.010</td><td>0.666±0.033</td></tr>
+<tr><td>Robust Filtered</td><td>0.930±0.006</td><td>0.732±0.018</td><td>0.718±0.018</td><td class="best">0.670±0.020</td></tr>
+</tbody>
+</table>
+
+<table class="results-table">
+<caption>Table R.3.2: PACS &mdash; ECE by Target Domain (5-trial mean &pm; std)</caption>
+<thead>
+<tr><th>Method</th><th>Photo ECE</th><th>Photo ECE+TS</th><th>Art ECE</th><th>Art ECE+TS</th><th>Cartoon ECE</th><th>Cartoon ECE+TS</th><th>Sketch ECE</th><th>Sketch ECE+TS</th></tr>
+</thead>
+<tbody>
+<tr><td>Single Expert</td><td>0.031±0.003</td><td>0.024±0.003</td><td>0.128±0.005</td><td>0.106±0.006</td><td>0.166±0.012</td><td>0.140±0.012</td><td>0.217±0.030</td><td>0.230±0.030</td></tr>
+<tr><td>Vanilla MoE</td><td>0.033±0.002</td><td>0.026±0.001</td><td>0.141±0.006</td><td>0.118±0.007</td><td>0.171±0.011</td><td>0.146±0.010</td><td>0.183±0.017</td><td>0.189±0.011</td></tr>
+<tr><td>MoCaE</td><td>0.033±0.003</td><td>0.026±0.003</td><td>0.134±0.006</td><td>0.112±0.006</td><td>0.183±0.018</td><td>0.158±0.017</td><td>0.184±0.017</td><td>0.192±0.016</td></tr>
+<tr><td>Robust MoE</td><td>0.018±0.005</td><td>0.019±0.005</td><td>0.088±0.025</td><td>0.071±0.023</td><td class="best">0.108±0.018</td><td class="best">0.088±0.021</td><td class="best">0.033±0.017</td><td class="best">0.072±0.025</td></tr>
+<tr><td>Robust Filtered</td><td class="best">0.016±0.005</td><td class="best">0.013±0.004</td><td class="best">0.075±0.013</td><td class="best">0.057±0.015</td><td>0.135±0.022</td><td>0.113±0.023</td><td>0.065±0.030</td><td>0.093±0.028</td></tr>
+</tbody>
+</table>
+
+<hr class="thin">
+
+<figure>
+  <a href="{{ "/assets/images/pacs_photo_reliability.png" | relative_url }}" target="_blank"><img src="{{ "/assets/images/pacs_photo_reliability.png" | relative_url }}" alt="Reliability diagrams — Photo domain" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;"></a>
+  <a href="{{ "/assets/images/pacs_photo_reliability_ts.png" | relative_url }}" target="_blank"><img src="{{ "/assets/images/pacs_photo_reliability_ts.png" | relative_url }}" alt="Reliability diagrams (with temperature scaling) — Photo domain" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;"></a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.3.2: Reliability diagrams for Photo, without temperature scaling (top) and with temperature scaling (bottom).</figcaption>
+</figure>
+
+<hr class="thin">
+
+<figure>
+  <a href="{{ "/assets/images/pacs_art_reliability.png" | relative_url }}" target="_blank"><img src="{{ "/assets/images/pacs_art_reliability.png" | relative_url }}" alt="Reliability diagrams — Art Painting domain" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;"></a>
+  <a href="{{ "/assets/images/pacs_art_reliability_ts.png" | relative_url }}" target="_blank"><img src="{{ "/assets/images/pacs_art_reliability_ts.png" | relative_url }}" alt="Reliability diagrams (with temperature scaling) — Art Painting domain" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;"></a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.3.3: Reliability diagrams for Art Painting, without temperature scaling (top) and with temperature scaling (bottom).</figcaption>
+</figure>
+
+<hr class="thin">
+
+<figure>
+  <a href="{{ "/assets/images/pacs_cartoon_reliability.png" | relative_url }}" target="_blank"><img src="{{ "/assets/images/pacs_cartoon_reliability.png" | relative_url }}" alt="Reliability diagrams — Cartoon domain" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;"></a>
+  <a href="{{ "/assets/images/pacs_cartoon_reliability_ts.png" | relative_url }}" target="_blank"><img src="{{ "/assets/images/pacs_cartoon_reliability_ts.png" | relative_url }}" alt="Reliability diagrams (with temperature scaling) — Cartoon domain" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;"></a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.3.4: Reliability diagrams for Cartoon, without temperature scaling (top) and with temperature scaling (bottom).</figcaption>
+</figure>
+
+<hr class="thin">
+
+<figure>
+  <a href="{{ "/assets/images/pacs_sketch_reliability.png" | relative_url }}" target="_blank"><img src="{{ "/assets/images/pacs_sketch_reliability.png" | relative_url }}" alt="Reliability diagrams — Sketch domain" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;"></a>
+  <a href="{{ "/assets/images/pacs_sketch_reliability_ts.png" | relative_url }}" target="_blank"><img src="{{ "/assets/images/pacs_sketch_reliability_ts.png" | relative_url }}" alt="Reliability diagrams (with temperature scaling) — Sketch domain" style="max-width: clamp(30rem, 100%, 100rem); height: auto; display: block; margin: 0 auto;"></a>
+  <figcaption style="text-align: center; font-weight: bold; color: #444; margin-top: 0.4em;">Figure R.3.5: Reliability diagrams for Sketch, without temperature scaling (top) and with temperature scaling (bottom).</figcaption>
+</figure>
+
+<hr>
+
+<h3>References</h3>
+
+<ol>
+  <li id="fn1">
+    Da Li, Yongxin Yang, Yi-Zhe Song, and Timothy M. Hospedales.
+    "Deeper, Broader and Artier Domain Generalization."
+    <em>IEEE International Conference on Computer Vision (ICCV)</em>, 2017, pp. 5543–5551.
+  </li>
+</ol>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page.title }} | {{ site.title }}</title>
+  <link rel="stylesheet" href="{{ "/assets/css/style.css" | relative_url }}">
+  <script>
+  window.MathJax = {
+    tex: {
+      packages: ['base', 'ams'],     // packages
+      inlineMath: [['\\(', '\\)']],  // $...$ sometimes conflicts with Markdown parsers like Kramdown
+      displayMath: [['\\[', '\\]'], ['$$', '$$']],
+      processEscapes: true,          // allow \\, \{, \} to  be passed through to MathJax
+      tags: 'ams',                   // number only \begin{equation}...\end{equation}
+    },
+  };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+
+<body>
+<div id="container">
+  <div id="layout-menu">
+    <div class="menu-category">Navigation</div>
+    <div class="menu-item"><a href="{{ "/" | relative_url }}">Home</a></div>
+    <div class="menu-item"><a href="{{ "/methods" | relative_url }}">R.1 Methods</a></div>
+    <div class="menu-item"><a href="{{ "/cifar10h" | relative_url }}">R.2 CIFAR-10H</a></div>
+    <div class="menu-item"><a href="{{ "/pacs" | relative_url }}">R.3 PACS</a></div>
+    <div class="menu-item"><a href="{{ "/civilcomments" | relative_url }}">R.4 CivilComments</a></div>
+    <div class="menu-item"><a href="{{ "/sensitivity" | relative_url }}">R.5 Sensitivity Analysis (NEW UPDATE)</a></div>
+    <div class="menu-item"><a href="{{ "/baselines" | relative_url }}">R.6 Additional Baselines (NEW UPDATE)</a></div>
+  </div>
+
+  <div id="layout-content">
+    {{ content }}
+  </div>
+</div>
+</body>
+</html>
